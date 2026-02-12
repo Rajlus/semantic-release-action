@@ -23,7 +23,23 @@ jobs:
           persist-credentials: false
 
       - name: Semantic Release
+        id: release
         uses: ./
         with:
           mode: release
           github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update major version tag
+        if: steps.release.outputs.new-release-published == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.release.outputs.new-release-version }}"
+          MAJOR="v$(echo "$VERSION" | cut -d. -f1)"
+
+          echo "::notice::Updating ${MAJOR} tag to point to v${VERSION}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -fa "${MAJOR}" -m "Update ${MAJOR} tag to v${VERSION}"
+          git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "${MAJOR}" --force
