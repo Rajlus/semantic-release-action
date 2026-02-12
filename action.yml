@@ -101,41 +101,127 @@ runs:
           echo "::notice::No new release published"
         fi
 
-    - name: Generate PR changelog preview
+    - name: Generate PR changelog via local repo
       if: inputs.mode == 'pr-changelog'
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
       run: |
-        # Run semantic-release dry-run to generate release notes
-        npx semantic-release --dry-run 2>&1 | tee /tmp/semantic-release-output.log || true
+        LOCAL_REPO="/tmp/semantic-release-local-repo"
 
-        # Extract release notes - semantic-release prints them between specific markers
-        # Try multiple extraction strategies
-        NOTES=""
+        echo "::group::Setting up local bare git repo for changelog generation"
 
-        # Strategy 1: Extract the release notes section from dry-run output
-        NOTES=$(awk '/^#{1,3} \[?[0-9]+\.[0-9]+\.[0-9]+/,0' /tmp/semantic-release-output.log 2>/dev/null || echo "")
+        # Fetch full history (checkout might be shallow)
+        git fetch --unshallow 2>/dev/null || true
+        git fetch origin "+refs/tags/*:refs/tags/*" 2>/dev/null || true
 
-        # Strategy 2: Look for "Release note" text
-        if [ -z "$NOTES" ]; then
-          NOTES=$(sed -n '/Release note/,/^$/p' /tmp/semantic-release-output.log 2>/dev/null | tail -n +2 || echo "")
+        # Create local bare repo and push all branches + tags to it
+        git init --bare "$LOCAL_REPO"
+        git remote add local "$LOCAL_REPO" 2>/dev/null || git remote set-url local "$LOCAL_REPO"
+        git branch -rd origin/HEAD 2>/dev/null || true
+        git push local --tags "refs/remotes/origin/*:refs/heads/*" 2>/dev/null || true
+
+        # Determine the actual branch name (detached HEAD in PR checkouts gives "HEAD")
+        CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+        if [ "$CURRENT_BRANCH" = "HEAD" ]; then
+          # In PR context, GITHUB_HEAD_REF contains the source branch name
+          CURRENT_BRANCH="${GITHUB_HEAD_REF:-$(git log -1 --format=%D | grep -oP 'origin/\K[^,]+' | head -1)}"
+        fi
+        echo "::notice::Using branch: $CURRENT_BRANCH"
+
+        # Push the current PR branch (it might not be in remotes)
+        git push local "HEAD:refs/heads/$CURRENT_BRANCH" 2>/dev/null || true
+
+        # Set HEAD in bare repo so git fetch doesn't fail with "couldn't find remote ref HEAD"
+        git -C "$LOCAL_REPO" symbolic-ref HEAD "refs/heads/$CURRENT_BRANCH"
+
+        echo "::endgroup::"
+
+        # Hide pre-release tags so changelog shows all changes since last stable release
+        echo "::group::Hiding pre-release tags"
+        git tag -l | { grep -E '.*-(dev|alpha|beta|rc)\.' || true; } | while read tag; do
+          git tag -d "$tag" 2>/dev/null || true
+          git -C "$LOCAL_REPO" tag -d "$tag" 2>/dev/null || true
+        done
+        echo "::endgroup::"
+
+        # Override branches config to treat current branch as a stable release branch
+        # This ensures we get a proper version (1.2.3) not a pre-release (1.2.3-branch.1)
+        echo "::group::Configuring release for PR branch"
+
+        # Backup original config
+        RELEASERC=""
+        for f in .releaserc.yml .releaserc.yaml .releaserc.json .releaserc.js release.config.js release.config.cjs; do
+          if [ -f "$f" ]; then
+            RELEASERC="$f"
+            cp "$f" "/tmp/releaserc-backup"
+            break
+          fi
+        done
+
+        if [ -n "$RELEASERC" ]; then
+          node "${{ github.action_path }}/scripts/modify-releaserc.js" "$RELEASERC" "$CURRENT_BRANCH" 2>/dev/null || echo "::warning::Could not modify release config, using as-is"
         fi
 
-        # Strategy 3: Extract lines with conventional commit info
+        echo "::endgroup::"
+
+        # Configure git user (required by @semantic-release/git)
+        git config --global user.email "semantic-release-bot@users.noreply.github.com"
+        git config --global user.name "semantic-release-bot"
+
+        # Checkout the actual branch so semantic-release detects the correct branch name
+        # (GitHub PRs use detached HEAD on refs/pull/N/merge which semantic-release rejects)
+        git checkout -B "$CURRENT_BRANCH" HEAD
+
+        # Run semantic-release against local repo (not dry-run! but targeting local bare repo)
+        # Override GITHUB_REF so env-ci reports the correct branch instead of refs/pull/N/merge
+        echo "::group::Running semantic-release against local repo"
+        GITHUB_REF="refs/heads/$CURRENT_BRANCH" GITHUB_EVENT_NAME="push" \
+          npx semantic-release --no-ci --repository-url "file://$LOCAL_REPO" 2>&1 | tee /tmp/semantic-release-output.log || true
+        echo "::endgroup::"
+
+        # Restore original config
+        if [ -n "$RELEASERC" ] && [ -f "/tmp/releaserc-backup" ]; then
+          cp "/tmp/releaserc-backup" "$RELEASERC"
+        fi
+
+        # Read generated CHANGELOG.md
+        NOTES=""
+        if [ -f CHANGELOG.md ]; then
+          # Extract only the first version section (from first ## X.Y.Z to the next ## X.Y.Z or end)
+          NOTES=$(awk '
+            /^#+ \[?[0-9]+\.[0-9]+\.[0-9]+/ {
+              if (found) exit
+              found = 1
+            }
+            found { print }
+          ' CHANGELOG.md)
+
+          # Replace local repo URLs with actual GitHub URLs
+          REPO_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}"
+          NOTES=$(echo "$NOTES" | sed "s|https*:/tmp/semantic-release-local-repo|${REPO_URL}|g")
+          NOTES=$(echo "$NOTES" | sed "s|file:///tmp/semantic-release-local-repo|${REPO_URL}|g")
+
+          # Clean up: restore original CHANGELOG.md (or remove if it didn't exist)
+          git checkout -- CHANGELOG.md 2>/dev/null || rm -f CHANGELOG.md
+        fi
+
+        # Fallback: parse dry-run output
         if [ -z "$NOTES" ]; then
-          FEATURES=$(grep -c "feat:" /tmp/semantic-release-output.log 2>/dev/null || echo "0")
-          FIXES=$(grep -c "fix:" /tmp/semantic-release-output.log 2>/dev/null || echo "0")
-          if [ "$FEATURES" != "0" ] || [ "$FIXES" != "0" ]; then
-            NOTES="Detected changes: $FEATURES feature(s), $FIXES fix(es)"
+          NEXT_VERSION=$(grep -oP 'next release version is \K[0-9]+\.[0-9]+\.[0-9]+' /tmp/semantic-release-output.log 2>/dev/null || echo "")
+          if [ -n "$NEXT_VERSION" ]; then
+            NOTES=$(printf '**Next version: %s**\n\n*Full changelog will be generated on merge.*' "$NEXT_VERSION")
+          else
+            NOTES="No releasable changes detected based on conventional commits."
           fi
         fi
 
-        if [ -z "$NOTES" ]; then
-          NOTES="No releasable changes detected based on conventional commits."
-        fi
-
         echo "$NOTES" > /tmp/pr-changelog.md
+
+        # Cleanup
+        rm -rf "$LOCAL_REPO"
+        git remote remove local 2>/dev/null || true
+
         echo "::notice::Generated PR changelog preview"
 
     - name: Update PR body with changelog
