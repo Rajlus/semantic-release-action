@@ -1,0 +1,25 @@
+name: PR Check
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  pr-changelog:
+    name: PR Changelog Preview
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: PR Changelog
+        uses: ./
+        with:
+          mode: pr-changelog
+          github-token: ${{ secrets.GITHUB_TOKEN }}
