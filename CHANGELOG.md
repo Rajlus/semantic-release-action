@@ -1,3 +1,9 @@
+## [1.2.0](https://github.com/Rajlus/semantic-release-action/compare/v1.1.0...v1.2.0) (2026-02-12)
+
+### Features
+
+* auto-update major version tag on release ([#2](https://github.com/Rajlus/semantic-release-action/issues/2)) ([5aa37bf](https://github.com/Rajlus/semantic-release-action/commit/5aa37bff56dc7e04cce3b40ffc4d45728323ed87))
+
 ## [1.1.0](https://github.com/Rajlus/semantic-release-action/compare/v1.0.0...v1.1.0) (2026-02-12)
 
 ### Features
