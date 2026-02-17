@@ -1,0 +1,116 @@
+name: Claude Code Review
+
+on:
+  workflow_call:
+    inputs:
+      review-focus:
+        description: 'Additional project-specific review focus points (markdown list)'
+        type: string
+        required: false
+        default: ''
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN:
+        required: true
+
+jobs:
+  review:
+    name: Claude Code Review
+    runs-on: ubuntu-latest
+
+    # id-token: write is required by claude-code-action for OIDC authentication
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+
+    # Only run on PRs from the same repo (not forks) to prevent API abuse
+    if: github.event.pull_request.head.repo.full_name == github.repository
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Claude Code Review
+        uses: anthropics/claude-code-action@2f8ba26a219c06cfb0f468eef8d97055fa814f97 # v1.0.53
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          allowed_non_write_users: '*'
+          prompt: |
+            Du bist ein Code-Reviewer. Analysiere den PR-Diff und erstelle ein strukturiertes Review.
+
+            ## WORKFLOW:
+
+            ### Schritt 1: Diff analysieren
+            ```bash
+            gh pr diff ${{ github.event.pull_request.number }}
+            ```
+            Lese auch relevante geänderte Dateien komplett mit dem Read tool.
+
+            ### Schritt 2: Review durchführen
+            Fokussiere auf:
+            1. **TypeScript Best Practices**: Typsicherheit, any vermeiden
+            2. **React Patterns**: Hooks, Memory Leaks, Cleanup
+            3. **Security**: XSS, API Key Exposure, Input Validation
+            4. **Code Quality**: DRY, Lesbarkeit, Error Handling
+
+            # Note: review-focus is provided by the caller who also controls the secret,
+            # so prompt injection risk is limited to trusted workflow authors.
+            ${{ inputs.review-focus != '' && format('**Projektspezifische Fokuspunkte:** {0}', inputs.review-focus) || '' }}
+
+            ### Schritt 3: Review-Ergebnis in Datei schreiben
+
+            WICHTIG: Du MUSST dein Review-Ergebnis nach `/tmp/code-review.md` schreiben.
+            Nutze dafür Bash mit cat und heredoc. Das Format:
+
+            ```bash
+            cat > /tmp/code-review.md << 'REVIEW_EOF'
+            ### ✅ PASS
+
+            **Stand:** YYYY-MM-DD | **Iteration:** N
+
+            #### Zusammenfassung
+            [1-2 Sätze]
+
+            #### Issues
+            [Gefundene Probleme, falls vorhanden — sonst "Keine Issues gefunden"]
+
+            #### Positives
+            - [Was gut gemacht wurde]
+
+            #### Fazit
+            [APPROVED / APPROVED mit Anmerkungen / CHANGES REQUESTED]
+            REVIEW_EOF
+            ```
+
+            Verwende ✅ PASS oder ❌ FAIL in der Überschrift.
+            Verwende das aktuelle Datum.
+            Falls ein vorheriges Review in der PR-Description existiert (zwischen CODE_REVIEW_START/END Markern),
+            prüfe ob vorherige Issues behoben wurden und erhöhe die Iterations-Nummer.
+
+            ### Schritt 4: Entscheidung
+
+            ❌ FAIL (exit 1) wenn:
+            - CRITICAL BUGS: Runtime errors, Type errors
+            - SECURITY: XSS, API Key exposure, Input validation missing
+            - BREAKING CHANGES ohne Migration Path
+
+            ✅ PASS (exit 0) wenn:
+            - Code ist production-ready
+            - Security Best Practices eingehalten
+            - Nur minor/non-blocking Issues
+
+            Denke sorgfältig nach und handle dann mit `exit 0` oder `exit 1`.
+
+          # Read-only tools: no Write/Edit to prevent unintended changes
+          claude_args: '--allowed-tools "Bash,Read,Grep,Glob"'
+
+      - name: Update PR Description with Review
+        if: always()
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash "${GITHUB_WORKSPACE}/scripts/update-pr-review.sh"
