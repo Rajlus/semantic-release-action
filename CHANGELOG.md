@@ -1,3 +1,9 @@
+## [1.3.0](https://github.com/Rajlus/semantic-release-action/compare/v1.2.0...v1.3.0) (2026-02-17)
+
+### Features
+
+* add reusable Claude Code Review workflow ([#3](https://github.com/Rajlus/semantic-release-action/issues/3)) ([5925d62](https://github.com/Rajlus/semantic-release-action/commit/5925d628da9bdf1070d2e7e592b2ab12a4b622e6))
+
 ## [1.2.0](https://github.com/Rajlus/semantic-release-action/compare/v1.1.0...v1.2.0) (2026-02-12)
 
 ### Features
