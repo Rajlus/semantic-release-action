@@ -108,9 +108,18 @@ jobs:
           # Read-only tools: no Write/Edit to prevent unintended changes
           claude_args: '--allowed-tools "Bash,Read,Grep,Glob"'
 
+      - name: Checkout scripts
+        if: always()
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: Rajlus/semantic-release-action
+          ref: v1
+          path: .semantic-release-action
+          sparse-checkout: scripts
+
       - name: Update PR Description with Review
         if: always()
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bash "${GITHUB_WORKSPACE}/scripts/update-pr-review.sh"
+        run: bash ".semantic-release-action/scripts/update-pr-review.sh"
