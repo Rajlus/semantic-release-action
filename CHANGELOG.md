@@ -1,3 +1,9 @@
+## [1.3.1](https://github.com/Rajlus/semantic-release-action/compare/v1.3.0...v1.3.1) (2026-02-17)
+
+### Bug Fixes
+
+* checkout scripts repo separately for cross-repo workflow calls ([d39d17e](https://github.com/Rajlus/semantic-release-action/commit/d39d17e63cf90dcd04b7ce8bbaa652264199856a))
+
 ## [1.3.0](https://github.com/Rajlus/semantic-release-action/compare/v1.2.0...v1.3.0) (2026-02-17)
 
 ### Features
