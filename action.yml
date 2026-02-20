@@ -1,9 +1,9 @@
 name: 'Semantic Release'
-description: 'Reusable composite action for semantic-release with changelog generation and PR previews'
+description: 'Reusable composite action for semantic-release with changelog generation, PR previews, dependency checks, and security audits'
 
 inputs:
   mode:
-    description: 'Operation mode: "release" or "pr-changelog"'
+    description: 'Operation mode: "release", "pr-changelog", "dependency-check", or "security-audit"'
     required: true
     default: 'release'
   github-token:
@@ -21,6 +21,18 @@ inputs:
     description: 'Run in dry-run mode (no release created, only in release mode)'
     required: false
     default: 'false'
+  core-packages:
+    description: 'Comma-separated list of core packages to check for major updates. Overridden by .dependency-policy.yml if present.'
+    required: false
+    default: ''
+  audit-fail-on:
+    description: 'Minimum severity that fails the pipeline: critical, high, moderate, low. Overridden by .dependency-policy.yml if present.'
+    required: false
+    default: 'high'
+  audit-production-only:
+    description: 'Only audit production dependencies (true/false). Overridden by .dependency-policy.yml if present.'
+    required: false
+    default: 'false'
 
 outputs:
   new-release-published:
@@ -29,6 +41,12 @@ outputs:
   new-release-version:
     description: 'The new release version'
     value: ${{ steps.release.outputs.new-release-version }}
+  dependency-check-status:
+    description: 'Result of dependency check: "pass" or "warn"'
+    value: ${{ steps.dependency-check.outputs.status }}
+  security-audit-status:
+    description: 'Result of security audit: "pass" or "fail"'
+    value: ${{ steps.security-audit.outputs.status }}
 
 runs:
   using: 'composite'
@@ -38,7 +56,10 @@ runs:
       with:
         node-version: ${{ inputs.node-version }}
 
+    # ---- RELEASE / PR-CHANGELOG MODES ----
+
     - name: Install semantic-release and plugins
+      if: inputs.mode == 'release' || inputs.mode == 'pr-changelog'
       shell: bash
       run: |
         npm install --no-save \
@@ -49,6 +70,7 @@ runs:
           ${{ inputs.extra-plugins }}
 
     - name: Generate default config if none exists
+      if: inputs.mode == 'release' || inputs.mode == 'pr-changelog'
       shell: bash
       run: |
         if [ ! -f .releaserc.yml ] && [ ! -f .releaserc.yaml ] && [ ! -f .releaserc.json ] && [ ! -f .releaserc.js ] && [ ! -f .releaserc.cjs ] && [ ! -f release.config.js ] && [ ! -f release.config.cjs ]; then
@@ -232,3 +254,44 @@ runs:
         PR_NUMBER: ${{ github.event.pull_request.number }}
       run: |
         bash "${{ github.action_path }}/scripts/update-pr-changelog.sh"
+
+    # ---- DEPENDENCY CHECK MODE ----
+
+    - name: Install project dependencies (dependency-check)
+      if: inputs.mode == 'dependency-check'
+      shell: bash
+      run: |
+        npm ci --ignore-scripts 2>/dev/null || npm install --ignore-scripts 2>/dev/null || true
+
+    - name: Run dependency check
+      if: inputs.mode == 'dependency-check'
+      id: dependency-check
+      shell: bash
+      env:
+        INPUT_CORE_PACKAGES: ${{ inputs.core-packages }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        GH_TOKEN: ${{ inputs.github-token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+      run: |
+        bash "${{ github.action_path }}/scripts/dependency-check.sh"
+
+    # ---- SECURITY AUDIT MODE ----
+
+    - name: Install project dependencies (security-audit)
+      if: inputs.mode == 'security-audit'
+      shell: bash
+      run: |
+        npm ci --ignore-scripts 2>/dev/null || npm install --ignore-scripts 2>/dev/null || true
+
+    - name: Run security audit
+      if: inputs.mode == 'security-audit'
+      id: security-audit
+      shell: bash
+      env:
+        INPUT_AUDIT_FAIL_ON: ${{ inputs.audit-fail-on }}
+        INPUT_AUDIT_PRODUCTION_ONLY: ${{ inputs.audit-production-only }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        GH_TOKEN: ${{ inputs.github-token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+      run: |
+        bash "${{ github.action_path }}/scripts/security-audit.sh"
