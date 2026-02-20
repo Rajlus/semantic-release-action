@@ -1,3 +1,9 @@
+## [1.4.0](https://github.com/Rajlus/semantic-release-action/compare/v1.3.1...v1.4.0) (2026-02-20)
+
+### Features
+
+* add dependency-check and security-audit modes ([5517950](https://github.com/Rajlus/semantic-release-action/commit/55179503cdb2d1aee3e0dbccaa4fb9c2d47b85d1))
+
 ## [1.3.1](https://github.com/Rajlus/semantic-release-action/compare/v1.3.0...v1.3.1) (2026-02-17)
 
 ### Bug Fixes
