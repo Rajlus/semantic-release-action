@@ -27,10 +27,11 @@ EOF
   exit 0
 fi
 
-# --- Run npm outdated ---
+# --- Run outdated check ---
 WORK_DIR="${WORKING_DIRECTORY:-.}"
-echo "::group::Running npm outdated (in $WORK_DIR)"
-(cd "$WORK_DIR" && npm outdated --json) > /tmp/npm-outdated.json 2>/dev/null || true
+PKG_MGR="${PKG_MANAGER:-npm}"
+echo "::group::Running $PKG_MGR outdated (in $WORK_DIR)"
+(cd "$WORK_DIR" && $PKG_MGR outdated --json) > /tmp/npm-outdated.json 2>/dev/null || true
 echo "::endgroup::"
 
 # --- Analyze core packages ---

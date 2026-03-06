@@ -14,13 +14,18 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=parse-dependency-policy.sh
 source "$SCRIPT_DIR/parse-dependency-policy.sh"
 
-# --- Run npm audit ---
+# --- Run audit ---
 WORK_DIR="${WORKING_DIRECTORY:-.}"
-echo "::group::Running npm audit (in $WORK_DIR)"
-AUDIT_CMD="npm audit --json"
+PKG_MGR="${PKG_MANAGER:-npm}"
+echo "::group::Running $PKG_MGR audit (in $WORK_DIR)"
+AUDIT_CMD="$PKG_MGR audit --json"
 if [ "$POLICY_AUDIT_PRODUCTION_ONLY" = "true" ]; then
-  AUDIT_CMD="$AUDIT_CMD --omit=dev"
-  echo "::notice::Auditing production dependencies only (--omit=dev)"
+  if [ "$PKG_MGR" = "pnpm" ]; then
+    AUDIT_CMD="$AUDIT_CMD --prod"
+  else
+    AUDIT_CMD="$AUDIT_CMD --omit=dev"
+  fi
+  echo "::notice::Auditing production dependencies only"
 fi
 (cd "$WORK_DIR" && $AUDIT_CMD) > /tmp/npm-audit.json 2>/dev/null || true
 echo "::endgroup::"

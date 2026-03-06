@@ -259,14 +259,38 @@ runs:
       run: |
         bash "${{ github.action_path }}/scripts/update-pr-changelog.sh"
 
+    # ---- PACKAGE MANAGER DETECTION (shared by dependency-check and security-audit) ----
+
+    - name: Detect package manager
+      if: inputs.mode == 'dependency-check' || inputs.mode == 'security-audit'
+      id: detect-pm
+      shell: bash
+      run: |
+        if [ -f pnpm-lock.yaml ]; then
+          echo "manager=pnpm" >> "$GITHUB_OUTPUT"
+          corepack enable pnpm 2>/dev/null || npm install -g pnpm 2>/dev/null || true
+          echo "::notice::Detected pnpm package manager"
+        elif [ -f yarn.lock ]; then
+          echo "manager=yarn" >> "$GITHUB_OUTPUT"
+          echo "::notice::Detected yarn package manager"
+        else
+          echo "manager=npm" >> "$GITHUB_OUTPUT"
+        fi
+
     # ---- DEPENDENCY CHECK MODE ----
 
     - name: Install project dependencies (dependency-check)
       if: inputs.mode == 'dependency-check'
       shell: bash
+      env:
+        PKG_MANAGER: ${{ steps.detect-pm.outputs.manager }}
       run: |
-        cd "${{ inputs.working-directory }}"
-        npm ci --ignore-scripts 2>/dev/null || npm install --ignore-scripts 2>/dev/null || true
+        if [ "$PKG_MANAGER" = "pnpm" ]; then
+          pnpm install --frozen-lockfile --ignore-scripts 2>/dev/null || pnpm install --ignore-scripts 2>/dev/null || true
+        else
+          cd "${{ inputs.working-directory }}"
+          npm ci --ignore-scripts 2>/dev/null || npm install --ignore-scripts 2>/dev/null || true
+        fi
 
     - name: Run dependency check
       if: inputs.mode == 'dependency-check'
@@ -278,6 +302,7 @@ runs:
         GH_TOKEN: ${{ inputs.github-token }}
         PR_NUMBER: ${{ github.event.pull_request.number }}
         WORKING_DIRECTORY: ${{ inputs.working-directory }}
+        PKG_MANAGER: ${{ steps.detect-pm.outputs.manager }}
       run: |
         bash "${{ github.action_path }}/scripts/dependency-check.sh"
 
@@ -286,9 +311,15 @@ runs:
     - name: Install project dependencies (security-audit)
       if: inputs.mode == 'security-audit'
       shell: bash
+      env:
+        PKG_MANAGER: ${{ steps.detect-pm.outputs.manager }}
       run: |
-        cd "${{ inputs.working-directory }}"
-        npm ci --ignore-scripts 2>/dev/null || npm install --ignore-scripts 2>/dev/null || true
+        if [ "$PKG_MANAGER" = "pnpm" ]; then
+          pnpm install --frozen-lockfile --ignore-scripts 2>/dev/null || pnpm install --ignore-scripts 2>/dev/null || true
+        else
+          cd "${{ inputs.working-directory }}"
+          npm ci --ignore-scripts 2>/dev/null || npm install --ignore-scripts 2>/dev/null || true
+        fi
 
     - name: Run security audit
       if: inputs.mode == 'security-audit'
@@ -301,5 +332,6 @@ runs:
         GH_TOKEN: ${{ inputs.github-token }}
         PR_NUMBER: ${{ github.event.pull_request.number }}
         WORKING_DIRECTORY: ${{ inputs.working-directory }}
+        PKG_MANAGER: ${{ steps.detect-pm.outputs.manager }}
       run: |
         bash "${{ github.action_path }}/scripts/security-audit.sh"
