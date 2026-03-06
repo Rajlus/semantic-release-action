@@ -66,7 +66,7 @@ runs:
       if: inputs.mode == 'release' || inputs.mode == 'pr-changelog'
       shell: bash
       run: |
-        npm install --no-save \
+        npm install --prefix /tmp/semantic-release --no-save \
           semantic-release@24 \
           @semantic-release/changelog@6 \
           @semantic-release/git@10 \
@@ -113,7 +113,8 @@ runs:
           ARGS="--dry-run"
         fi
 
-        npx semantic-release $ARGS 2>&1 | tee /tmp/semantic-release-output.log
+        export NODE_PATH="/tmp/semantic-release/node_modules"
+        npx --prefix /tmp/semantic-release semantic-release $ARGS 2>&1 | tee /tmp/semantic-release-output.log
 
         # Parse output for version
         VERSION=$(grep -oP 'Published release \K[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?' /tmp/semantic-release-output.log || echo "")
@@ -202,8 +203,9 @@ runs:
         # Run semantic-release against local repo (not dry-run! but targeting local bare repo)
         # Override GITHUB_REF so env-ci reports the correct branch instead of refs/pull/N/merge
         echo "::group::Running semantic-release against local repo"
+        export NODE_PATH="/tmp/semantic-release/node_modules"
         GITHUB_REF="refs/heads/$CURRENT_BRANCH" GITHUB_EVENT_NAME="push" \
-          npx semantic-release --no-ci --repository-url "file://$LOCAL_REPO" 2>&1 | tee /tmp/semantic-release-output.log || true
+          npx --prefix /tmp/semantic-release semantic-release --no-ci --repository-url "file://$LOCAL_REPO" 2>&1 | tee /tmp/semantic-release-output.log || true
         echo "::endgroup::"
 
         # Restore original config
