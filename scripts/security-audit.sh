@@ -15,13 +15,14 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/parse-dependency-policy.sh"
 
 # --- Run npm audit ---
-echo "::group::Running npm audit"
+WORK_DIR="${WORKING_DIRECTORY:-.}"
+echo "::group::Running npm audit (in $WORK_DIR)"
 AUDIT_CMD="npm audit --json"
 if [ "$POLICY_AUDIT_PRODUCTION_ONLY" = "true" ]; then
   AUDIT_CMD="$AUDIT_CMD --omit=dev"
   echo "::notice::Auditing production dependencies only (--omit=dev)"
 fi
-$AUDIT_CMD > /tmp/npm-audit.json 2>/dev/null || true
+(cd "$WORK_DIR" && $AUDIT_CMD) > /tmp/npm-audit.json 2>/dev/null || true
 echo "::endgroup::"
 
 # --- Parse and evaluate ---
