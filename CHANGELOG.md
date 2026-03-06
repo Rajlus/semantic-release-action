@@ -1,3 +1,10 @@
+## [1.5.0](https://github.com/Rajlus/semantic-release-action/compare/v1.4.0...v1.5.0) (2026-03-06)
+
+### Features
+
+* add working-directory input for monorepo support ([5e94b96](https://github.com/Rajlus/semantic-release-action/commit/5e94b96b8263b9d15a38bbd48b6b1fa143ea0c5f))
+* auto-detect package manager (pnpm/yarn/npm) ([6ace669](https://github.com/Rajlus/semantic-release-action/commit/6ace669db9a4641bad496256b80125d6c10f92c9))
+
 ## [1.4.0](https://github.com/Rajlus/semantic-release-action/compare/v1.3.1...v1.4.0) (2026-02-20)
 
 ### Features
