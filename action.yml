@@ -33,6 +33,10 @@ inputs:
     description: 'Only audit production dependencies (true/false). Overridden by .dependency-policy.yml if present.'
     required: false
     default: 'false'
+  working-directory:
+    description: 'Working directory for dependency-check and security-audit modes (e.g. "apps/web" in a monorepo). Defaults to repo root.'
+    required: false
+    default: '.'
 
 outputs:
   new-release-published:
@@ -261,6 +265,7 @@ runs:
       if: inputs.mode == 'dependency-check'
       shell: bash
       run: |
+        cd "${{ inputs.working-directory }}"
         npm ci --ignore-scripts 2>/dev/null || npm install --ignore-scripts 2>/dev/null || true
 
     - name: Run dependency check
@@ -272,6 +277,7 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         GH_TOKEN: ${{ inputs.github-token }}
         PR_NUMBER: ${{ github.event.pull_request.number }}
+        WORKING_DIRECTORY: ${{ inputs.working-directory }}
       run: |
         bash "${{ github.action_path }}/scripts/dependency-check.sh"
 
@@ -281,6 +287,7 @@ runs:
       if: inputs.mode == 'security-audit'
       shell: bash
       run: |
+        cd "${{ inputs.working-directory }}"
         npm ci --ignore-scripts 2>/dev/null || npm install --ignore-scripts 2>/dev/null || true
 
     - name: Run security audit
@@ -293,5 +300,6 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         GH_TOKEN: ${{ inputs.github-token }}
         PR_NUMBER: ${{ github.event.pull_request.number }}
+        WORKING_DIRECTORY: ${{ inputs.working-directory }}
       run: |
         bash "${{ github.action_path }}/scripts/security-audit.sh"

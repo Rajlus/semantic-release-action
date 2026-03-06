@@ -28,8 +28,9 @@ EOF
 fi
 
 # --- Run npm outdated ---
-echo "::group::Running npm outdated"
-npm outdated --json > /tmp/npm-outdated.json 2>/dev/null || true
+WORK_DIR="${WORKING_DIRECTORY:-.}"
+echo "::group::Running npm outdated (in $WORK_DIR)"
+(cd "$WORK_DIR" && npm outdated --json) > /tmp/npm-outdated.json 2>/dev/null || true
 echo "::endgroup::"
 
 # --- Analyze core packages ---
@@ -47,11 +48,13 @@ try {
 }
 
 // Read package.json to know which packages are installed
+const workDir = process.env.WORKING_DIRECTORY || '.';
+const pkgPath = path.join(workDir, 'package.json');
 let pkgJson = {};
 try {
-  pkgJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+  pkgJson = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
 } catch (e) {
-  console.error('Could not read package.json');
+  console.error('Could not read ' + pkgPath);
   process.exit(1);
 }
 const allDeps = {
