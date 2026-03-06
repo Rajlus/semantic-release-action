@@ -1,3 +1,9 @@
+## [1.5.1](https://github.com/Rajlus/semantic-release-action/compare/v1.5.0...v1.5.1) (2026-03-06)
+
+### Bug Fixes
+
+* isolate semantic-release install from project package.json ([d65f59f](https://github.com/Rajlus/semantic-release-action/commit/d65f59f29d34c050b696c1e24b184965fa905c5d))
+
 ## [1.5.0](https://github.com/Rajlus/semantic-release-action/compare/v1.4.0...v1.5.0) (2026-03-06)
 
 ### Features
