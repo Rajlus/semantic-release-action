@@ -1,3 +1,9 @@
+## [1.5.2](https://github.com/Rajlus/semantic-release-action/compare/v1.5.1...v1.5.2) (2026-06-05)
+
+### Bug Fixes
+
+* **dependency-check:** respect working-directory when locating policy file ([ac13cf7](https://github.com/Rajlus/semantic-release-action/commit/ac13cf713736dcde544146c93054f031b0c70641))
+
 ## [1.5.1](https://github.com/Rajlus/semantic-release-action/compare/v1.5.0...v1.5.1) (2026-03-06)
 
 ### Bug Fixes
