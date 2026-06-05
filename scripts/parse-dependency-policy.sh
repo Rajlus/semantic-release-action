@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
-# Parse .dependency-policy.yml from repo root, fall back to action inputs.
+# Parse .dependency-policy.yml from the working directory (defaults to repo
+# root), fall back to action inputs.
 #
 # This script is meant to be sourced by other scripts:
 #   source "$(dirname "$0")/parse-dependency-policy.sh"
 #
 # Reads from environment (action inputs as fallback):
+#   WORKING_DIRECTORY         - subdirectory the policy + package.json live in
+#                               (matches the action's `working-directory` input).
+#                               Defaults to "." (repo root). The policy file is
+#                               looked up at "$WORKING_DIRECTORY/.dependency-policy.yml",
+#                               which lets monorepo packages ship their own.
 #   INPUT_CORE_PACKAGES       - comma-separated list
 #   INPUT_AUDIT_FAIL_ON       - critical|high|moderate|low
 #   INPUT_AUDIT_PRODUCTION_ONLY - true|false
@@ -15,7 +21,8 @@
 #   POLICY_AUDIT_PRODUCTION_ONLY - true|false
 #   POLICY_ALLOWLIST_FILE     - path to TSV file (id\treason\texpires) or empty
 
-POLICY_FILE=".dependency-policy.yml"
+_POLICY_WORK_DIR="${WORKING_DIRECTORY:-.}"
+POLICY_FILE="${_POLICY_WORK_DIR%/}/.dependency-policy.yml"
 POLICY_ALLOWLIST_FILE=""
 
 if [ -f "$POLICY_FILE" ]; then
